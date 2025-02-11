@@ -64,11 +64,6 @@ enum Mood {
     MOOD_EXCITED
 };
 
-enum Position {
-    POS_N, POS_NE, POS_E, POS_SE, POS_S, POS_SW, POS_W, POS_NW, POS_DEFAULT,
-    SLIGHT_LEFT, SLIGHT_RIGHT, SLIGHT_UP, SLIGHT_DOWN
-};
-
 // Function Prototypes
 void setMood(Mood mood);
 void anim_wink();
@@ -229,8 +224,9 @@ void setup() {
     display.display();
 
     // Initialize Robo Eyes
+    roboEyes.setHeight(30,30);
     roboEyes.begin(SCREEN_WIDTH, SCREEN_HEIGHT, 120);
-    roboEyes.setPosition(POS_DEFAULT);
+    roboEyes.setPosition(DEFAULT);
     roboEyes.setAutoblinker(ON, 3, 2);
 
     // Connect to Wi-Fi and start the server
@@ -272,17 +268,72 @@ int get_audio_level(int audio_temp) {
     return final_audio_level;
 }
 
+// Normalize Wi-Fi signal into WIFI_LEVELS (e.g., 10 levels)
+int get_wifi_level(int wifi_signal) {
+    static int last_wifi_level = 0; // Track the last level for smoothing
+    const int SMOOTHING_FACTOR = 2; // Controls how much smoothing is applied
+    const int JITTER_RANGE = 1;     // Introduces small random variations
+
+    // Define the observed range of Wi-Fi networks (e.g., 0–9)
+    const int WIFI_MIN = 0;
+    const int WIFI_MAX = 9;
+
+    // Normalize the raw Wi-Fi count into WIFI_LEVELS
+    int raw_wifi_level = map(wifi_signal, WIFI_MIN, WIFI_MAX, 0, WIFI_LEVELS - 1);
+
+    // Apply smoothing to reduce abrupt changes
+    int smoothed_wifi_level = (raw_wifi_level + last_wifi_level * SMOOTHING_FACTOR) / (SMOOTHING_FACTOR + 1);
+
+    // Add random jitter to encourage frequent variations
+    int jitter = random(-JITTER_RANGE, JITTER_RANGE + 1); // Random value between -1 and 1
+    int final_wifi_level = constrain(smoothed_wifi_level + jitter, 0, WIFI_LEVELS - 1);
+
+    // Update the last Wi-Fi level for the next iteration
+    last_wifi_level = final_wifi_level;
+
+    return final_wifi_level;
+}
+
+// Normalize Bluetooth signal into BT_LEVELS (e.g., 10 levels)
+int get_bt_level(int bt_signal) {
+    static int last_bt_level = 0; // Track the last level for smoothing
+    const int SMOOTHING_FACTOR = 2; // Controls how much smoothing is applied
+    const int JITTER_RANGE = 1;     // Introduces small random variations
+
+    // Define the observed range of Bluetooth devices (e.g., 0–14)
+    const int BT_MIN = 0;
+    const int BT_MAX = 14; // add to global variable
+
+    // Normalize the raw Bluetooth count into BT_LEVELS
+    int raw_bt_level = map(bt_signal, BT_MIN, BT_MAX, 0, BT_LEVELS - 1);
+
+    // Apply smoothing to reduce abrupt changes
+    int smoothed_bt_level = (raw_bt_level + last_bt_level * SMOOTHING_FACTOR) / (SMOOTHING_FACTOR + 1);
+
+    // Add random jitter to encourage frequent variations
+    int jitter = random(-JITTER_RANGE, JITTER_RANGE + 1); // Random value between -1 and 1
+    int final_bt_level = constrain(smoothed_bt_level + jitter, 0, BT_LEVELS - 1);
+
+    // Update the last Bluetooth level for the next iteration
+    last_bt_level = final_bt_level;
+
+    return final_bt_level;
+}
+
 // Task: Read sensor data
 void TaskReadSensors(void *pvParameters) {
     while (1) {
         int light = analogRead(LIGHT_SENSOR);
         int audio_temp = analogRead(AUDIO_SENSOR);
-        Serial.print("Audio Sensor: ");
-        Serial.println(audio_temp);
-        int audio = get_audio_level(audio_temp);
         int wifi_signal = get_wifi_signal_level();
         int bt_signal = get_bt_signal_level();
-        current_state = get_discrete_state(light, audio, wifi_signal, bt_signal);
+
+        int audio = get_audio_level(audio_temp);
+        int wifi_state = get_wifi_level(wifi_signal);
+        int bt_state = get_bt_level(bt_signal);
+
+        // Combine all sensor values into a single state
+        current_state = get_discrete_state(light, audio, wifi_state, bt_state);
         vTaskDelay(pdMS_TO_TICKS(2000));
     }
 }
@@ -299,21 +350,17 @@ int get_discrete_state(int light, int audio, int wifi_signal, int bt_signal) {
     Serial.print("audio_state: ");
     Serial.println(audio);
 
-    // Normalize Wi-Fi signal (raw count) into 10 levels
-    int wifi_state = constrain(map(wifi_signal, 0, 50, 0, WIFI_LEVELS - 1), 0, WIFI_LEVELS - 1);
-    Serial.print("wifi_state: ");
-    Serial.println(wifi_state);
+    Serial.print("wifi_signal: ");
+    Serial.println(wifi_signal);
 
-    // Normalize Bluetooth signal (raw count) into 10 levels
-    int bt_state = constrain(map(bt_signal, 0, 50, 0, BT_LEVELS - 1), 0, BT_LEVELS - 1);
     Serial.print("bt_state: ");
-    Serial.println(bt_state);
+    Serial.println(bt_signal);
 
     // Combine all states into a single index
     return (light_state * AUDIO_LEVELS * WIFI_LEVELS * BT_LEVELS) +
            (audio * WIFI_LEVELS * BT_LEVELS) +
-           (wifi_state * BT_LEVELS) +
-           bt_state;
+           (wifi_signal * BT_LEVELS) +
+           bt_signal;
 }
 
 // Get Wi-Fi signal level
@@ -535,33 +582,33 @@ void TaskUpdateDisplay(void *pvParameters) {
 void setMood(Mood mood) {
     switch (mood) {
         case MOOD_DEFAULT:
-            roboEyes.setPosition(POS_DEFAULT);
+            roboEyes.setPosition(DEFAULT);
             roboEyes.open();
             break;
         case MOOD_TIRED:
-            roboEyes.setPosition(POS_SW);
+            roboEyes.setPosition(SW);
             roboEyes.close(1, 0);
             roboEyes.close(0, 1);
             break;
         case MOOD_ANGRY:
-            roboEyes.setPosition(POS_N);
+            roboEyes.setPosition(N);
             roboEyes.setCuriosity(OFF);
             roboEyes.anim_confused();
             break;
         case MOOD_HAPPY:
-            roboEyes.setPosition(POS_S);
+            roboEyes.setPosition(S);
             roboEyes.anim_laugh();
             break;
         case MOOD_SAD:
-            roboEyes.setPosition(POS_SW);
+            roboEyes.setPosition(SW);
             roboEyes.blink();
             break;
         case MOOD_SURPRISED:
-            roboEyes.setPosition(POS_DEFAULT);
+            roboEyes.setPosition(DEFAULT);
             anim_wink(); // Custom implementation
             break;
         case MOOD_EXCITED:
-            roboEyes.setPosition(POS_DEFAULT);
+            roboEyes.setPosition(DEFAULT);
             anim_rolling_eyes(); // Custom implementation
             break;
     }
@@ -569,38 +616,44 @@ void setMood(Mood mood) {
 
 // Custom Animations
 void anim_wink() {
+    autoMode = false;
     roboEyes.close(1, 0); // Close one eye
     vTaskDelay(pdMS_TO_TICKS(200));
     roboEyes.open();      // Open both eyes
+    autoMode = true;
 }
 
 void anim_rolling_eyes() {
-    roboEyes.setPosition(POS_N);
+    autoMode = false;
+    roboEyes.setPosition(N);
     vTaskDelay(pdMS_TO_TICKS(100));
-    roboEyes.setPosition(POS_NE);
+    roboEyes.setPosition(NE);
     vTaskDelay(pdMS_TO_TICKS(100));
-    roboEyes.setPosition(POS_E);
+    roboEyes.setPosition(E);
     vTaskDelay(pdMS_TO_TICKS(100));
-    roboEyes.setPosition(POS_SE);
+    roboEyes.setPosition(SE);
     vTaskDelay(pdMS_TO_TICKS(100));
-    roboEyes.setPosition(POS_S);
+    roboEyes.setPosition(S);
     vTaskDelay(pdMS_TO_TICKS(100));
-    roboEyes.setPosition(POS_SW);
+    roboEyes.setPosition(SW);
     vTaskDelay(pdMS_TO_TICKS(100));
-    roboEyes.setPosition(POS_W);
+    roboEyes.setPosition(W);
     vTaskDelay(pdMS_TO_TICKS(100));
-    roboEyes.setPosition(POS_NW);
+    roboEyes.setPosition(NW);
     vTaskDelay(pdMS_TO_TICKS(100));
-    roboEyes.setPosition(POS_DEFAULT);
+    roboEyes.setPosition(DEFAULT);
+    autoMode = true;
 }
 
 void anim_sleepy() {
+    autoMode = false;
     for (int i = 0; i < 5; i++) {
         roboEyes.close();
         vTaskDelay(pdMS_TO_TICKS(200));
         roboEyes.open();
         vTaskDelay(pdMS_TO_TICKS(200));
     }
+    autoMode = true;
 }
 
 void loop() {
