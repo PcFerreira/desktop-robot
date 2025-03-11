@@ -13,7 +13,7 @@ This project is a reinforcement learning-based robot running on an **ESP32 WROOM
 ✅ **Sensor-Based Decision Making** – The robot reacts dynamically based on **light and sound levels**.  
 ✅ **Persistent Learning** – Uses **EEPROM** to store the Q-table, allowing the robot to retain behaviors after reboot.  
 ✅ **Improved Action Selection** – Now uses a **50% exploration, 50% exploitation** strategy for more balanced learning.  
-✅ **Last Action Reinforcement** – The system now remembers the last meaningful action (excluding default) for button reinforcement.  
+✅ **Last Action Reinforcement** – The system remembers the last meaningful action (excluding default) for button reinforcement.  
 ✅ **Prevents Action Repetition** – Penalizes repetitive actions to encourage diversity in behavior selection.  
 
 ## Hardware Requirements
@@ -77,9 +77,7 @@ This project is a reinforcement learning-based robot running on an **ESP32 WROOM
 5. **Let the robot learn over time—its reactions will improve based on reinforcement!**
 
 ---
-### 📌 This project demonstrates a simple yet powerful reinforcement learning system on an ESP32 using FreeRTOS and an OLED display. 🚀
 
----
 
 Modify the FluxGarage_RoboEyes.h file to use an extern reference to display. This allows it to recognize the display object from sketch.ino.
 
